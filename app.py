@@ -6,11 +6,12 @@ import fitz # PyMuPDF
 
 st.set_page_config(page_title="Legal_AI: 문서 자동화", layout="wide")
 
-# 줄바꿈과 특수문자 에러를 원천 차단하는 조립 방식입니다.
-def get_client():
+# 1. 찌그러진 열쇠를 펴주는 함수
+def get_clean_client():
     try:
-        # 1. 키의 핵심 부품들을 리스트로 정의 (줄바꿈 에러 방지)
-        p_key = (
+        # 이 부분이 대표님의 실제 키 값입니다. 
+        # \n이 실제 엔터로 바뀌어버리는 문제를 해결하기 위해 조립식으로 구성했습니다.
+        raw_p_key = (
             "-----BEGIN PRIVATE KEY-----\n"
             "MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDUCS2AOnLmvW7J\n"
             "cdHkPMr/R/ofYyezVVDFECKFFlNAkE5djYwZZarSMlBALsMU8/AGFSSh9IXXCyQV\n"
@@ -41,12 +42,11 @@ def get_client():
             "-----END PRIVATE KEY-----\n"
         )
         
-        # 2. 딕셔너리로 조립
         info = {
             "type": "service_account",
             "project_id": "formal-facet-469109-n9",
             "private_key_id": "a75d5c613386e549458b7f9ce7429053fa690601",
-            "private_key": p_key,
+            "private_key": raw_p_key.replace("\\n", "\n"), # 강제로 열쇠 펴기
             "client_email": "97202050044-compute@developer.gserviceaccount.com",
             "client_id": "106591061735155848403",
             "auth_uri": "https://accounts.google.com/o/oauth2/auth",
@@ -59,15 +59,15 @@ def get_client():
         creds = service_account.Credentials.from_service_account_info(info)
         return vision.ImageAnnotatorClient(credentials=creds)
     except Exception as e:
-        st.error(f"❌ 인증 최종 실패 (수동 확인 필요): {e}")
+        st.error(f"❌ 최종 인증 실패: {e}")
         return None
 
-client = get_client()
+client = get_clean_client()
 
 st.title("⚖️ Legal_AI: 서비스 준비 완료")
 
 if client:
-    uploaded_file = st.file_uploader("법인등기부 PDF를 업로드하세요", type=["pdf", "png", "jpg"])
+    uploaded_file = st.file_uploader("법인등기부 PDF 또는 이미지를 업로드하세요", type=["pdf", "png", "jpg"])
     if uploaded_file:
         with st.spinner('AI 분석 중...'):
             try:
@@ -83,4 +83,4 @@ if client:
                 st.success("✅ 분석 완료! 아래에서 내용을 확인하세요.")
                 st.text_area("인식 결과", full_text, height=300)
             except Exception as e:
-                st.error(f"오류: {e}")
+                st.error(f"분석 중 오류 발생: {e}")
