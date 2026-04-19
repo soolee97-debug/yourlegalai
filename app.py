@@ -1,5 +1,6 @@
 import streamlit as st
 import json
+import re
 from google.cloud import vision
 from google.oauth2 import service_account
 import fitz  # PyMuPDF
@@ -8,8 +9,8 @@ st.set_page_config(page_title="Legal_AI: 문서 자동화", layout="wide")
 
 def get_final_client():
     try:
-        # [최종병기] 복사 시 글자가 깨지지 않도록 모든 공백과 줄바꿈을 제거한 순수 데이터입니다.
-        raw_key = (
+        # [우주 최강 종결] 복사 과정의 모든 오차를 무시하고 강제로 복구합니다.
+        raw_key_body = (
             "MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDUCS2AOnLmvW7J"
             "cdHkPMr/R/ofYyezVVDFECKFFlNAkE5djYwZZarSMlBALsMU8/AGFSSh9IXXCyQV"
             "6HcUraznulFAqBNLKFGcACcfukoSJhg1wjv9A9D3XBfzz6WDQdBgyrMo6WemoEkK"
@@ -38,14 +39,17 @@ def get_final_client():
             "9r7OovQdTCBfT0srvINlQpEk"
         )
         
-        # 기계가 직접 줄바꿈을 넣어 PEM 형식을 완성합니다. (오타 0%)
-        final_key = "-----BEGIN PRIVATE KEY-----\n" + raw_key + "\n-----END PRIVATE KEY-----\n"
+        # 기계가 직접 64글자씩 끊어서 완벽한 PEM 형식을 재조립합니다.
+        formatted_key = "-----BEGIN PRIVATE KEY-----\n"
+        for i in range(0, len(raw_key_body), 64):
+            formatted_key += raw_key_body[i:i+64] + "\n"
+        formatted_key += "-----END PRIVATE KEY-----\n"
         
         info = {
             "type": "service_account",
             "project_id": "formal-facet-469109-n9",
             "private_key_id": "a75d5c613386e549458b7f9ce7429053fa690601",
-            "private_key": final_key,
+            "private_key": formatted_key,
             "client_email": "97202050044-compute@developer.gserviceaccount.com",
             "client_id": "106591061735155848403",
             "auth_uri": "https://accounts.google.com/o/oauth2/auth",
@@ -62,7 +66,7 @@ def get_final_client():
 
 client = get_final_client()
 
-st.markdown("<h2 style='text-align: center;'>⚖️ Legal_AI: 서비스 준비 완료</h2>", unsafe_allow_html=True)
+st.title("⚖️ Legal_AI: 서비스 준비 완료")
 
 if client:
     uploaded_file = st.file_uploader("법인등기부 PDF 또는 이미지를 업로드하세요", type=["pdf", "png", "jpg"])
