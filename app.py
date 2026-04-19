@@ -6,11 +6,11 @@ import fitz  # PyMuPDF
 
 st.set_page_config(page_title="Legal_AI: 문서 자동화", layout="wide")
 
-# [완전 종결] 어떤 오차도 허용하지 않는 강제 인증 방식
+# [완전 종결] 복사 시 글자가 깨지지 않도록 한 줄로 압축한 보안키입니다.
 def get_final_client():
     try:
-        # 키의 몸통입니다. (복사 에러를 막기 위해 아주 튼튼하게 짰습니다.)
-        k_data = (
+        # 이 한 덩어리의 텍스트가 대표님의 완벽한 열쇠입니다.
+        key_data_string = (
             "MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDUCS2AOnLmvW7J"
             "cdHkPMr/R/ofYyezVVDFECKFFlNAkE5djYwZZarSMlBALsMU8/AGFSSh9IXXCyQV"
             "6HcUraznulFAqBNLKFGcACcfukoSJhg1wjv9A9D3XBfzz6WDQdBgyrMo6WemoEkK"
@@ -39,10 +39,11 @@ def get_final_client():
             "9r7OovQdTCBfT0srvINlQpEk"
         )
         
-        # 기계가 직접 줄바꿈을 넣어 PEM 형식을 강제 완성합니다.
+        # 기계가 직접 PEM 형식을 완벽하게 재조립합니다.
         formatted_key = "-----BEGIN PRIVATE KEY-----\n"
-        for i in range(0, len(k_data), 64):
-            formatted_key += k_data[i:i+64] + "\n"
+        # 64자마다 줄바꿈을 넣어 표준 규격을 강제로 맞춥니다.
+        for i in range(0, len(key_data_string), 64):
+            formatted_key += key_data_string[i:i+64] + "\n"
         formatted_key += "-----END PRIVATE KEY-----\n"
         
         info = {
@@ -61,12 +62,12 @@ def get_final_client():
         creds = service_account.Credentials.from_service_account_info(info)
         return vision.ImageAnnotatorClient(credentials=creds)
     except Exception as e:
-        st.error(f"❌ 인증 복구 실패: {e}")
+        st.error(f"❌ 보안 시스템 최종 복구 실패: {e}")
         return None
 
 client = get_final_client()
 
-st.markdown("<h2 style='text-align: center;'>⚖️ Legal_AI: 서비스 준비 완료</h2>", unsafe_allow_html=True)
+st.title("⚖️ Legal_AI: 서비스 준비 완료")
 
 if client:
     uploaded_file = st.file_uploader("법인등기부 PDF 또는 이미지를 업로드하세요", type=["pdf", "png", "jpg"])
@@ -86,3 +87,5 @@ if client:
                 st.text_area("인식 결과", full_text, height=450)
             except Exception as e:
                 st.error(f"분석 중 오류 발생: {e}")
+else:
+    st.stop()
