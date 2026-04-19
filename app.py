@@ -8,17 +8,13 @@ st.set_page_config(page_title="Legal_AI: 문서 분석", layout="wide")
 
 def get_google_client():
     try:
-        # Streamlit Secrets에서 보안 정보를 안전하게 읽어옵니다.
-        # 이 방식은 텍스트 깨짐 현상이 발생하지 않습니다.
-        info = dict(st.secrets["gcp_service_account"])
-        # JSON 안에 섞인 줄바꿈 기호를 실제 줄바꿈으로 변환
-        info["private_key"] = info["private_key"].replace("\\n", "\n")
-        
+        # 금고에 넣어둔 JSON 텍스트를 통째로 읽어 파이썬 객체로 만듭니다.
+        # 이 방식은 글자 깨짐 사고가 발생하지 않는 가장 안전한 방법입니다.
+        info = json.loads(st.secrets["GCP_JSON"])
         creds = service_account.Credentials.from_service_account_info(info)
         return vision.ImageAnnotatorClient(credentials=creds)
     except Exception as e:
-        st.error(f"❌ 보안 금고 연결 실패: {e}")
-        st.info("💡 앱 설정(Settings > Secrets)에 보안키를 입력했는지 확인해주세요.")
+        st.error(f"❌ 인증 연결 실패: {e}")
         return None
 
 client = get_google_client()
