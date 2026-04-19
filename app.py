@@ -7,7 +7,7 @@ import fitz
 import re
 import pandas as pd
 
-st.set_page_config(page_title="Legal_AI: 정밀 분석", layout="wide")
+st.set_page_config(page_title="Legal_AI: 정밀 분석", layout="wide", page_icon="⚖️")
 
 @st.cache_resource
 def get_client():
@@ -19,16 +19,24 @@ def get_client():
 
 client = get_client()
 
+# --- 깔끔한 UI 디자인 ---
+st.markdown("""
+    <style>
+    .main { background-color: #f8f9fa; }
+    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    </style>
+    """, unsafe_allow_html=True)
+
 st.title("⚖️ Legal_AI: 1초 정밀 분석 리포트")
+st.caption("법인등기부의 핵심 데이터를 분석하여 법적 리스크를 진단합니다.")
 
 if client:
     uploaded_file = st.file_uploader("법인등기부를 업로드하세요 (PDF/이미지)", type=["pdf", "png", "jpg"])
     
     if uploaded_file:
-        # 광속 분석 시작
-        with st.container():
+        with st.spinner('데이터를 정밀 분석 중입니다...'):
             try:
-                # 1. 텍스트 추출 (OCR)
+                # 1. OCR 텍스트 추출
                 raw_text = ""
                 if uploaded_file.type == "application/pdf":
                     doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
@@ -38,41 +46,48 @@ if client:
                 else:
                     raw_text = client.document_text_detection(image=vision.Image(content=uploaded_file.getvalue())).full_text_annotation.text
 
-                # 2. 핵심 요약 (상단 카드)
+                # 2. 정보 정제 로직
                 comp_name = re.search(r'상호\s+([^\n]+)', raw_text)
-                st.subheader(f"🏢 {comp_name.group(1).strip() if comp_name else '법인 분석 완료'}")
+                title = comp_name.group(1).strip() if comp_name else "법인 분석 리포트"
                 
-                # 3. 데이터 시각화 (탭 구조로 속도와 가독성 모두 잡음)
-                tab1, tab2, tab3 = st.tabs(["📅 전체 변동 타임라인", "👤 임원진 현황", "📜 원문 확인"])
+                # 3. 레이아웃 구성
+                st.header(f"🏢 {title}")
+                
+                tab1, tab2, tab3 = st.tabs(["📊 핵심 요약", "⏳ 변동 타임라인", "📝 원문 데이터"])
 
                 with tab1:
-                    st.write("### 🕒 등기부 히스토리 (날짜순 정렬)")
-                    # 날짜와 뒤따르는 문장을 묶어서 추출
-                    history_raw = re.findall(r'(\d{4}년\s*\d{1,2}월\s*\d{1,2}일)\s*([^\n]+)', raw_text)
-                    if history_raw:
-                        h_df = pd.DataFrame(history_raw, columns=['일자', '내용']).sort_values(by='일자', ascending=False)
-                        st.dataframe(h_df, use_container_width=True)
-                        
-                        # 리스크 자동 감지
-                        st.error("🚨 **과태료 리스크 체크:** 2021년 이전 '중임' 기록이 있는 이사는 현재 임기 만료 상태일 확률이 높습니다. 즉시 확인하세요.")
+                    st.subheader("💡 법인 요약 정보")
+                    c1, c2, c3 = st.columns(3)
+                    
+                    # 자본금 추출 시도
+                    capital = re.search(r'자본금의 액\s+금\s*([\d,]+)', raw_text)
+                    c1.metric("추정 자본금", capital.group(1) + "원" if capital else "별도 확인")
+                    c2.metric("등기 상태", "정상 (살아있는 법인)" if "말소" not in raw_text else "말소 사항 포함")
+                    c3.metric("본점 소재지", "사천/기타" if "사천" in raw_text else "서울/기타")
+
+                    st.subheader("🚨 리스크 자가진단")
+                    # 날짜 기반 리스크 분석
+                    expired_directors = re.findall(r'(\d{4}년\s+\d{1,2}월\s+\d{1,2}일)\s+(?:중임|취임)', raw_text)
+                    if expired_directors:
+                        latest_date = max(expired_directors)
+                        if int(latest_date[:4]) <= 2021:
+                            st.error(f"⚠️ **임기 만료 주의:** 마지막 중임일이 {latest_date}입니다. 3년 임기 만료에 따른 등기 여부를 즉시 확인하세요!")
+                        else:
+                            st.success(f"✅ **임원 임기 양호:** 최근 {latest_date}에 등기가 확인되었습니다.")
+
+                with tab2:
+                    st.subheader("📅 변동 사항 히스토리 (최신순)")
+                    history = re.findall(r'(\d{4}년\s*\d{1,2}월\s*\d{1,2}일)\s*([^\n]+)', raw_text)
+                    if history:
+                        h_df = pd.DataFrame(history, columns=['일자', '내용']).sort_values(by='일자', ascending=False)
+                        st.table(h_df.head(15)) # 상위 15개만 깔끔하게
                     else:
                         st.info("기록된 날짜 데이터가 없습니다.")
 
-                with tab2:
-                    st.write("### 👤 확인된 임원 명단")
-                    # 이름 형태(외국인 포함) 추출
-                    officer_names = re.findall(r'(?:이사|감사|대표이사)\s+([가-힣\s\w\(\)]+?)(?:\s+\d{6}-|\s+\d{4}년)', raw_text)
-                    if officer_names:
-                        clean_names = list(set([name.strip() for name in officer_names if len(name.strip()) > 1]))
-                        for n in clean_names:
-                            st.write(f"• {n}")
-                    else:
-                        st.write("인식된 임원 정보가 없습니다.")
-
                 with tab3:
-                    st.text_area("인식 원문", raw_text, height=500)
+                    st.text_area("인식된 원문 전체", raw_text, height=600)
 
             except Exception as e:
-                st.error(f"분석 엔진 오류: {e}")
+                st.error(f"분석 중 오류 발생: {e}")
 else:
-    st.error("보안 설정(Secrets)을 확인해주세요.")
+    st.error("보안 설정이 필요합니다.")
