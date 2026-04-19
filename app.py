@@ -8,13 +8,14 @@ st.set_page_config(page_title="Legal_AI: 문서 분석", layout="wide")
 
 def get_google_client():
     try:
-        # 금고에 넣어둔 JSON 텍스트를 통째로 읽어 파이썬 객체로 만듭니다.
-        # 이 방식은 글자 깨짐 사고가 발생하지 않는 가장 안전한 방법입니다.
+        # 금고에 넣어둔 GCP_JSON이라는 이름표를 찾아 읽습니다.
+        # 이 방식은 TOML 줄바꿈 에러를 원천 차단합니다.
         info = json.loads(st.secrets["GCP_JSON"])
         creds = service_account.Credentials.from_service_account_info(info)
         return vision.ImageAnnotatorClient(credentials=creds)
     except Exception as e:
         st.error(f"❌ 인증 연결 실패: {e}")
+        st.info("💡 앱 설정(Manage App > Settings > Secrets)에 GCP_JSON 내용을 입력하고 Save 하셨는지 확인해주세요.")
         return None
 
 client = get_google_client()
