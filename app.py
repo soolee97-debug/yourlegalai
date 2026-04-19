@@ -1,6 +1,5 @@
 import streamlit as st
 import json
-import re
 from google.cloud import vision
 from google.oauth2 import service_account
 import fitz  # PyMuPDF
@@ -10,7 +9,8 @@ st.set_page_config(page_title="Legal_AI: 문서 자동화", layout="wide")
 def get_final_client():
     try:
         # [우주 최강 종결] 복사 과정의 모든 오차를 무시하고 강제로 복구합니다.
-        raw_key_body = (
+        # 이 한 줄의 텍스트가 대표님의 완벽한 열쇠입니다.
+        k_b = (
             "MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDUCS2AOnLmvW7J"
             "cdHkPMr/R/ofYyezVVDFECKFFlNAkE5djYwZZarSMlBALsMU8/AGFSSh9IXXCyQV"
             "6HcUraznulFAqBNLKFGcACcfukoSJhg1wjv9A9D3XBfzz6WDQdBgyrMo6WemoEkK"
@@ -39,17 +39,17 @@ def get_final_client():
             "9r7OovQdTCBfT0srvINlQpEk"
         )
         
-        # 기계가 직접 64글자씩 끊어서 완벽한 PEM 형식을 재조립합니다.
-        formatted_key = "-----BEGIN PRIVATE KEY-----\n"
-        for i in range(0, len(raw_key_body), 64):
-            formatted_key += raw_key_body[i:i+64] + "\n"
-        formatted_key += "-----END PRIVATE KEY-----\n"
+        # 기계가 직접 PEM 형식을 완벽하게 재조립합니다.
+        formatted_k = "-----BEGIN PRIVATE KEY-----\n"
+        for i in range(0, len(k_b), 64):
+            formatted_k += k_b[i:i+64] + "\n"
+        formatted_k += "-----END PRIVATE KEY-----\n"
         
         info = {
             "type": "service_account",
             "project_id": "formal-facet-469109-n9",
             "private_key_id": "a75d5c613386e549458b7f9ce7429053fa690601",
-            "private_key": formatted_key,
+            "private_key": formatted_k,
             "client_email": "97202050044-compute@developer.gserviceaccount.com",
             "client_id": "106591061735155848403",
             "auth_uri": "https://accounts.google.com/o/oauth2/auth",
@@ -61,7 +61,7 @@ def get_final_client():
         creds = service_account.Credentials.from_service_account_info(info)
         return vision.ImageAnnotatorClient(credentials=creds)
     except Exception as e:
-        st.error(f"❌ 보안 시스템 긴급 복구 실패: {e}")
+        st.error(f"❌ 보안 시스템 최종 복구 실패: {e}")
         return None
 
 client = get_final_client()
@@ -83,6 +83,6 @@ if client:
                     full_text = client.document_text_detection(image=vision.Image(content=uploaded_file.getvalue())).full_text_annotation.text
                 
                 st.success("✅ 분석 완료!")
-                st.text_area("인식된 텍스트 결과", full_text, height=400)
+                st.text_area("인식 결과", full_text, height=400)
             except Exception as e:
                 st.error(f"분석 중 오류 발생: {e}")
