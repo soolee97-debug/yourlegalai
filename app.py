@@ -2,15 +2,15 @@ import streamlit as st
 import json
 from google.cloud import vision
 from google.oauth2 import service_account
-import fitz # PyMuPDF
+import fitz  # PyMuPDF
 
 st.set_page_config(page_title="Legal_AI: 문서 자동화", layout="wide")
 
-# [완전 종결] 복사 에러가 절대 날 수 없는 압축 조립 방식
+# [완전 종결] 복사/오타 에러가 절대 날 수 없는 구조
 def get_final_client():
     try:
-        # 1. 키 데이터를 아주 튼튼한 리스트 형태로 조립합니다.
-        key_parts = [
+        # 키 데이터를 한 줄씩 정성껏 합칩니다.
+        k = [
             "-----BEGIN PRIVATE KEY-----",
             "MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDUCS2AOnLmvW7J",
             "cdHkPMr/R/ofYyezVVDFECKFFlNAkE5djYwZZarSMlBALsMU8/AGFSSh9IXXCyQV",
@@ -41,27 +41,23 @@ def get_final_client():
             "-----END PRIVATE KEY-----"
         ]
         
-        # 2. 줄바꿈을 파이썬이 직접 넣게 하여 찌그러진 키를 완벽하게 폅니다.
-        final_key = "\n".join(key_parts)
-        
         info = {
             "type": "service_account",
             "project_id": "formal-facet-469109-n9",
             "private_key_id": "a75d5c613386e549458b7f9ce7429053fa690601",
-            "private_key": final_key,
+            "private_key": "\n".join(k),
             "client_email": "97202050044-compute@developer.gserviceaccount.com",
             "client_id": "106591061735155848403",
             "auth_uri": "https://accounts.google.com/o/oauth2/auth",
             "token_uri": "https://oauth2.googleapis.com/token",
             "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-            "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/97202050044-compute%40developer.gserviceaccount.com",
-            "universe_domain": "googleapis.com"
+            "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/97202050044-compute%40developer.gserviceaccount.com"
         }
         
         creds = service_account.Credentials.from_service_account_info(info)
         return vision.ImageAnnotatorClient(credentials=creds)
     except Exception as e:
-        st.error(f"❌ 인증 최종 실패: {e}")
+        st.error(f"❌ 인증 시스템 복구 실패: {e}")
         return None
 
 client = get_final_client()
@@ -69,20 +65,22 @@ client = get_final_client()
 st.title("⚖️ Legal_AI: 서비스 준비 완료")
 
 if client:
-    uploaded_file = st.file_uploader("법인등기부 PDF 또는 이미지를 업로드하세요", type=["pdf", "png", "jpg"])
+    uploaded_file = st.file_uploader("법인등기부 PDF를 업로드하세요", type=["pdf", "png", "jpg"])
     if uploaded_file:
-        with st.spinner('AI가 서류를 정밀 분석 중입니다...'):
+        with st.spinner('AI가 서류를 분석 중입니다...'):
             try:
-                full_text = ""
+                text = ""
                 if uploaded_file.type == "application/pdf":
                     doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
                     for page in doc:
                         pix = page.get_pixmap()
-                        full_text += client.document_text_detection(image=vision.Image(content=pix.tobytes("png"))).full_text_annotation.text + "\n"
+                        img = vision.Image(content=pix.tobytes("png"))
+                        text += client.document_text_detection(image=img).full_text_annotation.text + "\n"
                 else:
-                    full_text = client.document_text_detection(image=vision.Image(content=uploaded_file.getvalue())).full_text_annotation.text
+                    img = vision.Image(content=uploaded_file.getvalue())
+                    text = client.document_text_detection(image=img).full_text_annotation.text
                 
                 st.success("✅ 분석 완료!")
-                st.text_area("인식 결과", full_text, height=400)
+                st.text_area("결과 텍스트", text, height=400)
             except Exception as e:
-                st.
+                st.error(f"분석 중 오류 발생: {e}")
