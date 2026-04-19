@@ -7,9 +7,10 @@ import fitz  # PyMuPDF
 
 st.set_page_config(page_title="Legal_AI: 문서 분석", layout="wide")
 
-def get_clean_client():
+def get_final_clean_client():
     try:
-        # 1. 보안키 데이터 (복사 사고를 막기 위해 모든 글자를 하나로 합친 덩어리입니다)
+        # [수술 단계 1] 키 본문 데이터
+        # 복사 중에 어떤 공백이나 줄바꿈이 섞여도 상관없게 처리합니다.
         raw_key_body = (
             "MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDUCS2AOnLmvW7J"
             "cdHkPMr/R/ofYyezVVDFECKFFlNAkE5djYwZZarSMlBALsMU8/AGFSSh9IXXCyQV"
@@ -39,10 +40,10 @@ def get_clean_client():
             "9r7OovQdTCBfT0srvINlQpEk"
         )
         
-        # 2. [핵심 로직] 유령 문자 제거기 (알파벳, 숫자, +, /, =만 남기고 싹 지웁니다)
+        # [수술 단계 2] 불순물 제거 (알파벳, 숫자, +, /, = 만 남깁니다)
         clean_body = "".join(re.findall(r'[A-Za-z0-9+/=]+', raw_key_body))
         
-        # 3. [강제 재조립] 구글이 원하는 정석 규격으로 줄바꿈을 다시 넣습니다.
+        # [수술 단계 3] 구글 정석 규격(64자 줄바꿈)으로 강제 재조립
         formatted_key = "-----BEGIN PRIVATE KEY-----\n"
         for i in range(0, len(clean_body), 64):
             formatted_key += clean_body[i:i+64] + "\n"
@@ -67,11 +68,12 @@ def get_clean_client():
         st.error(f"❌ 보안 시스템 강제 복구 실패: {e}")
         return None
 
-client = get_clean_client()
+client = get_final_clean_client()
 
-st.title("⚖️ Legal_AI: 서비스 가동")
+st.title("⚖️ Legal_AI: 서비스 가동 중")
 
 if client:
+    st.success("✅ 시스템 정상 연결됨")
     uploaded_file = st.file_uploader("법인등기부 PDF 또는 이미지를 업로드하세요", type=["pdf", "png", "jpg"])
     if uploaded_file:
         with st.spinner('AI 분석 중...'):
@@ -85,7 +87,7 @@ if client:
                 else:
                     text = client.document_text_detection(image=vision.Image(content=uploaded_file.getvalue())).full_text_annotation.text
                 
-                st.success("✅ 분석 완료!")
-                st.text_area("결과 확인", text, height=450)
+                st.subheader("分析 결과")
+                st.text_area("결과 텍스트", text, height=500)
             except Exception as e:
                 st.error(f"분석 중 오류 발생: {e}")
