@@ -1,50 +1,54 @@
 import streamlit as st
 import json
+import base64
 from google.cloud import vision
 from google.oauth2 import service_account
 import fitz
 
-st.set_page_config(page_title="Legal_AI: 최종 승인", layout="wide")
+st.set_page_config(page_title="Legal_AI: 완전 자동화", layout="wide")
 
-st.sidebar.title("🔑 보안 인증")
-# [최종 정공법] 복잡한 설정을 거치지 않고, 화면에서 직접 키를 입력받습니다.
-json_input = st.sidebar.text_area("1. JSON 파일 내용 전체를 여기에 붙여넣으세요", height=300, help="구글에서 다운받은 .json 파일을 메모장으로 열어 전체 복사-붙여넣기 하세요.")
-
-def get_client(json_text):
+@st.cache_resource
+def get_automated_client():
     try:
-        info = json.loads(json_text)
+        # 1. 금고(Secrets)에서 암호문을 가져옵니다.
+        b64_key = st.secrets["GCP_KEY_B64"]
+        
+        # 2. 시스템 내부에서 직접 해독 (복사 중 글자 깨짐 사고 0%)
+        decoded_key = base64.b64decode(b64_key).decode('utf-8')
+        info = json.loads(decoded_key)
+        
         creds = service_account.Credentials.from_service_account_info(info)
         return vision.ImageAnnotatorClient(credentials=creds)
     except Exception as e:
-        st.sidebar.error(f"⚠️ 인증 대기 중: {e}")
+        st.error(f"❌ 보안 인증 실패: {e}")
         return None
 
-client = None
-if json_input:
-    client = get_client(json_input)
+# 접속 시 자동으로 인증 시도
+client = get_automated_client()
 
-st.title("⚖️ Legal_AI: 서비스 가동")
+st.title("⚖️ Legal_AI: 서비스 가동 중")
 
 if client:
-    st.success("✅ 인증 성공! 이제 서류를 분석할 수 있습니다.")
-    uploaded_file = st.file_uploader("2. 법인등기부 PDF 또는 이미지를 업로드하세요", type=["pdf", "png", "jpg"])
+    st.success("✅ 보안 인증 완료! 이제 파일만 올리시면 됩니다.")
+    uploaded_file = st.file_uploader("분석할 등기부(PDF/이미지)를 업로드하세요", type=["pdf", "png", "jpg"])
     
     if uploaded_file:
         with st.spinner('AI 분석 중...'):
             try:
-                full_text = ""
+                text = ""
                 if uploaded_file.type == "application/pdf":
                     doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
                     for page in doc:
                         pix = page.get_pixmap()
-                        full_text += client.document_text_detection(image=vision.Image(content=pix.tobytes("png"))).full_text_annotation.text + "\n"
+                        res = client.document_text_detection(image=vision.Image(content=pix.tobytes("png")))
+                        text += res.full_text_annotation.text + "\n"
                 else:
-                    full_text = client.document_text_detection(image=vision.Image(content=uploaded_file.getvalue())).full_text_annotation.text
+                    res = client.document_text_detection(image=vision.Image(content=uploaded_file.getvalue()))
+                    text = res.full_text_annotation.text
                 
                 st.subheader("📝 분석 결과")
-                st.text_area("인식된 텍스트", full_text, height=500)
+                st.text_area("인식된 내용", text, height=500)
             except Exception as e:
                 st.error(f"분석 중 오류 발생: {e}")
 else:
-    st.info("👈 왼쪽 사이드바에 구글 JSON 키 내용을 붙여넣으시면 분석 창이 나타납니다.")
-    st.image("https://www.gstatic.com/lamda/images/sparkle_v2_dark_rdm_600x337.png", caption="인증을 기다리고 있습니다.")
+    st.warning("🔑 보안 설정(Secrets)에서 GCP_KEY_B64 값을 확인해주세요.")
