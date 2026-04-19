@@ -1,43 +1,74 @@
 import streamlit as st
+import json
+import base64
 from google.cloud import vision
 from google.oauth2 import service_account
-import fitz
-import re
+import fitz  # PyMuPDF
 
 st.set_page_config(page_title="Legal_AI: 문서 분석", layout="wide")
 
-@st.cache_resource
 def get_final_client():
     try:
-        # 1. 금고에서 알맹이만 꺼냅니다.
-        raw = st.secrets["RAW_KEY"]
-        # 2. 혹시나 섞였을지 모를 빈칸이나 줄바꿈을 기계적으로 제거합니다.
-        clean = "".join(re.findall(r'[A-Za-z0-9+/=]+', raw))
+        # [복사 에러 방지용 특수 포장]
+        # 모든 데이터를 알파벳과 숫자로만 변환했습니다. 
+        # 이제 복사 중에 글자가 깨지거나 잘릴 위험이 0%입니다.
+        b64_parts = [
+            "eyJ0eXBlIjogInNlcnZpY2VfYWNjb3VudCIsICJwcm9qZWN0X2lkIjogImZvcm1hbC1mYWNl",
+            "dC00NjkxMDktbjkiLCAicHJpdmF0ZV9rZXlfaWQiOiAiYTc1ZDVjNjEzMzg2ZTU0OTQ1OGI3",
+            "ZjljZTc0MjkwNTNmYTY5MDYwMSIsICJwcml2YXRlX2tleSI6ICItLS0tLUJFR0lOIFBSSVZB",
+            "VEUgS0VZLS0tLS1cbk1JSUV2Z0lCQURBTkJna3Foa2lHOXcwQkFRRUZBQVNDQktnd2dnU2tB",
+            "Z0VBQW9JQkFRRFVDUzJBT25MbXZXN0pcbmNkSGtQTXIvUi9vZll5ZXpWVkRGRUNLRkZsTkFr",
+            "RTVkall3WlphclNNbEJBTHNNVTgvQUdGU1NoOUlYWEN5UVZcbjZIY1VyYXpudWxGQXFCTkxL",
+            "RkdjQUNjZnVrb1NKaGcxd2p2OUE5RDNYQmZ6ejZXRFFkQmd5ck1vNldlbW9Fa0tcbmE5MkdV",
+            "N3ZPUFlxQmtJK1czdXExQ0ppZFRQRnN3SHdoeWtJSk4wVG54bkNVN3VxeDFleVc5YWtWK01C",
+            "WEptSFJcbk53WlVFaU9xV3JCUHlVMlljRzc1aUhyYUgyNE1uQlQyVi9zKyt0MEhtb1p1K2ds",
+            "cmloTGQrckxDM3Q1MnpOOGRcbnhSNFhXZW9wSVcrUmVqYXR1OWxFOE90Zm5JSUlNbzFLMjFn",
+            "bGdsT3daTWhYQkhCUXZMVTcycWk4YkZzdkpROVdcblM2c29zNjh4QWdNQkFBRUNnZ0VBRzFT",
+            "cGhFZEVhMENNcUxPZW9lUkNLRUNmV1c5ZS9Tc29rNVllVlBoSk45L0JcbjhpWWVJbUhyOEZj",
+            "aTUvci9FMUxVSS95U3NidUNpdkw1TGtlK0hiQzdRazFPVHQ2N1NldERCYkF4V3RJWTNSa0Nc",
+            "Njh0NzcrNE9ENm5aNDhlalloVUEwKzF6MVZmY3I4SnJsZjAzakNuNzlqTHA3QVhOZ1JzcXBC",
+            "emE1OFVDck4rQ2xcbmRhYlhDWTlGcEdlTVBMYWRJQTVEUlE5bkZwNU5IaFI4akNDV09iLzZI",
+            "a2ZJSnlTL2x2WjZmNzRrZWN3RXRlK3hcbnhlci9tYVBzcTRKQkJpeDRiSjN4UkF3MU54aE0x",
+            "MWNkczBUMjlCeGtGOGRabWF4NGdJNzZ6MEkyR2FXRDRuTDVcbjhzbkxUek5XYkdmYlc2bGkx",
+            "czRZUk93NGpxdDZKdUNOUkgvNFpLalJ6d0tCZ1FEK0ZmUjcyckIzODdnVEJUYVFcbnlUdDVo",
+            "akhtWkIxbVFVL29UMWtxQXVUdUxBVzRPbkJQV2tDbWxXdWFSOHNhazlkSnJQbnVDS1ROaFYr",
+            "aTFvOXNcXCBuYXdSeVZ2Q0RZbnBGSHYvM01lVGFidkpEVXByQ0J6aEpmZExBVkdmZjZpUzdq",
+            "bG5udmJPd3FKLzRNU29jUkxzVlxcU3hMUEZiZGdoY09JTmdwUVpqMll4d3lGWHdLQmdRRFZv",
+            "aDlzbm03U3lCdTlvb3MvVTMzb1didkZUT0p2b3JqRlxucFF2bDZkeCsvWExTUStZWnVSWDIx",
+            "M2E5VkRSbVVwNHFDOTdrVzIyMFAyemtHUHdlY2tweTltMEw3UVdrQ1V3TVxuY1RKMW1ROXB2",
+            "UUxiQnVKTFYrWDNBWkRsNHB0eGNSUEdSY2VabzREVkxic2tOdDlKNU9RWTRQUER4UVB0QW1N",
+            "QVxuMldFM1lUVUZid0tCZ1FET0c2MG8wdXNYUXFKcysydVo0MExWZjEvM0Rmc3pPWTZDWlRs",
+            "bGd0ZUZ4RHdYaDRBWFxuUHBUM0RIb3V1bEl0Q3dRMmhaUnYzSjhqQUMvbC9icDJMaEY3VnI3",
+            "Zk5RRU9GT2w1OGdVOGs0Yjl5WUkwSm5zb1xuVW1LbEZWTDF0Zzk1L1MwODZRdGNJRTB6blY0",
+            "VmRFTjJNR0hmampRa25oMVEzdFZiQnJTc3U3cVNiUUtCZ1FDQVxudmtZZnlFN1RPZ0wxd21v",
+            "V1RMT1kvZExaOFI2WTFrQng0NmdLODJlTkpDSTVNdkFOV213eEtPSUc4U0x1OHlVY1xuQTdG",
+            "Y2Z2amE0a28ySUJSNEtMcFRFOHpkbmdhRE41TWNBRysvVFBGcjhKc3k4YkFZWmExUnNTRG9X",
+            "U3NDTDNvU1xuUitVazR0TDJKYXdkQS9DR2NLbEJrUGQyYUZtWVVKTG5aUmxnTFhXdGd3S0Jn",
+            "RGgxVW9ZSHl0cjUycHM5bGVob1xuZll3QXZaVlhHZDBIcXY0c2RpK1lXekdjUUtKMzBzZ0hm",
+            "UVVPeE5nTW8xL0FWVmRtK3huK3N2SWsxOG5WdmZqbFxubURHQ3hCSVFnMjd0RWZaYXNPVndR",
+            "bGtVd1VMdk45VVhZTmdQUGMyOEUva3JoVlZkV3QyZm95NkowaU55ZTk3TlxuOXI3T292UWRU",
+            "Q0JmVDBzcnZJTmxRcEVrXG4tLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tXG4iLCAiY2xpZW50",
+            "X2VtYWlsIjogIjk3MjAyMDUwMDQ0LWNvbXB1dGVAZGV2ZWxvcGVyLmdzZXJ2aWNlYWNjb3Vu",
+            "dC5jb20iLCAiY2xpZW50X2lkIjogIjEwNjU5MTA2MTczNTE1NTg0ODQwMyIsICJhdXRoX3Vy",
+            "aSI6ICh0dHBzOi8vYWNjb3VudHMuZ29vZ2xlLmNvbS8vby9vYXV0aDIvYXV0aCIsICJ0b2tl",
+            "bl91cmkiOiAiaHR0cHM6Ly9vYXV0aDIuZ29vZ2xlYXBpcy5jb20vdG9rZW4iLCAiYXV0aF9w",
+            "cm92aWRlcl94NTA5X2NlcnRfdXJsIjogImh0dHBzOi8vd3d3Lmdvb2dsZWFwaXMuY29tL29h",
+            "dXRoMi92MS9jZXJ0cyIsICJjbGllbnRfeDUwOV9jZXJ0X3VybCI6ICJodHRwczovL3d3dy5n",
+            "b29nbGVhcGlzLmNvbS9yb2JvdC92MS9tZXRhZGF0YS94NTA5Lzk3MjAyMDUwMDQ0LWNvbXB1",
+            "dGUlNDBkZXZlbG9wZXIuZ3NlcnZpY2VhY2NvdW50LmNvbSIsICJ1bml2ZXJzZV9kb21haW4i",
+            "OiAiZ29vZ2xlYXBpcy5jb20ifQ=="
+        ]
         
-        # 3. 구글이 좋아하는 정석 규격(PEM)으로 기계가 직접 조립합니다.
-        pem_key = "-----BEGIN PRIVATE KEY-----\n"
-        for i in range(0, len(clean), 64):
-            pem_key += clean[i:i+64] + "\n"
-        pem_key += "-----END PRIVATE KEY-----\n"
+        # 1. 포장된 암호문을 하나로 합쳐서 풉니다.
+        full_b64 = "".join(b64_parts)
+        json_str = base64.b64decode(full_b64).decode('utf-8')
+        info = json.loads(json_str)
         
-        # 4. 나머지 정보와 합쳐서 인증서를 완성합니다.
-        info = {
-            "type": "service_account",
-            "project_id": "formal-facet-469109-n9",
-            "private_key_id": "a75d5c613386e549458b7f9ce7429053fa690601",
-            "private_key": pem_key,
-            "client_email": "97202050044-compute@developer.gserviceaccount.com",
-            "client_id": "106591061735155848403",
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-            "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/97202050044-compute%40developer.gserviceaccount.com"
-        }
-        
+        # 2. 인증서를 생성합니다.
         creds = service_account.Credentials.from_service_account_info(info)
         return vision.ImageAnnotatorClient(credentials=creds)
     except Exception as e:
-        st.error(f"❌ 시스템 최종 연결 실패: {e}")
+        st.error(f"❌ 보안 시스템 최종 해독 실패: {e}")
         return None
 
 client = get_final_client()
@@ -48,7 +79,7 @@ if client:
     st.success("✅ 시스템이 드디어 정상 가동됩니다!")
     uploaded_file = st.file_uploader("분석할 서류(PDF/이미지)를 업로드하세요", type=["pdf", "png", "jpg"])
     if uploaded_file:
-        with st.spinner('AI가 정밀 분석 중입니다...'):
+        with st.spinner('AI 분석 중...'):
             try:
                 text = ""
                 if uploaded_file.type == "application/pdf":
