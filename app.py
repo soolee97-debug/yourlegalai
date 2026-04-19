@@ -1,93 +1,46 @@
 import streamlit as st
 import json
-import re
 from google.cloud import vision
 from google.oauth2 import service_account
-import fitz  # PyMuPDF
+import fitz
 
 st.set_page_config(page_title="Legal_AI: 문서 분석", layout="wide")
 
-def get_final_clean_client():
+def get_google_client():
     try:
-        # [수술 단계 1] 키 본문 데이터
-        # 복사 중에 어떤 공백이나 줄바꿈이 섞여도 상관없게 처리합니다.
-        raw_key_body = (
-            "MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDUCS2AOnLmvW7J"
-            "cdHkPMr/R/ofYyezVVDFECKFFlNAkE5djYwZZarSMlBALsMU8/AGFSSh9IXXCyQV"
-            "6HcUraznulFAqBNLKFGcACcfukoSJhg1wjv9A9D3XBfzz6WDQdBgyrMo6WemoEkK"
-            "a92GU7vOPYqBkI+W3uq1CJidTPFswHwhykIJN0TnxnCU7uqx1eyW9akV+MBXJmHR"
-            "NwZUEiOqWrBPyU2YcG75iHraH24MnBT2V/s++t0HmoZu+glrijLd+rLC3t52zN8d"
-            "xR4XWeopIW+Rejatu9lE8OtfnIIIMo1K21glglOwZMhXBHBQvLU72qi8bFsvJQ9W"
-            "S6sos68xAgMBAAECggEAG1SphEdEa0CMqLOeoeRCKECfWW9e/Ssok5YeVPhJN9/B"
-            "8iYeImHr8Fci5/r/E1LUI/ySsbuCivL5Lke+HbC7Qk1OTt67SetDBbAxWtIY3RkC"
-            "8t77+4OD6nZ48ejYhUA0+1z1Vfcr8Jrlf03jCn79jLp7AXNgRsqqBza58UCrN+Cl"
-            "dabXCY9FpGeMPLadIA5DRQ9nFp5NHhR8jCCWOb/6HkfIJyS/lvZ6f74kecwEte+x"
-            "xer/maPsq4JBBix4bJ3xRAw1NxhM11cds0T29BxkF8dZmax4gI76z0I2GaWD4nL5"
-            "8snLTzNWbGfbW6li1s4YROw4jqt6JuCNRH/4ZKjRzwKBgQD+FfR72rB387gTBTaQ"
-            "yTt5hjHmZB1mQU/oT1kqAuTuLAW4OnBPWkCmlWuaR8sak9dJrPnuCKTNhV+i1o9s"
-            "awRyVvCDYnpFHv/3MeTabvJDUprCBzhJfdLAVGff6iS7jlnnvbOwqJ/4MSocRLsV"
-            "SxLPFbdghcOINgpQZj2YxwyFXwKBgQDVoh9snm7SyBu9oos/U33oWbvFTOJvorjF"
-            "pQvl6dx+/XLSQ+YZuRX213a9VDRmUp4qC97kW220P2zkGPweckpy9m0L7QWkCUwM"
-            "cTJ1mQ9pvQLbBuJLV+X3AZDl4ptxcRPGRceZo4DVLbskNt9J5OQY4PPDxQPtAmMA"
-            "2WE3YTUFbwKBgQDOG60o0usXQqJs+2uZ40LVf1/3DfszOY6CZTllgteFxDwXh4AX"
-            "PpT3DHouulItCwQ2hZRv3J8jAC/l/bp2LhF7Vr7fNQEOFOl58gU8k4b9yYI0Jnso"
-            "UmKlFVL1tg95/S086QtcIE0znV4VdEN2MGHfjjQknh1Q3tVbBrSsu7qSbQKBgQCA"
-            "vkYfyE7TOgL1wmoWTLOY/dLZ8R6Y1kBx46gK82eNJCI5MvANWmwxKOIG8SLu8yUc"
-            "A7Fcfvja4ko2IBR4KLpTE8zdngaDN5McAG+/TPFr8Jsy8bAYZa1RsSDoWSsCL3oS"
-            "R+Uk4tL2JawdA/CGcKlBkPd2aFmYUJLnZRlgLXWtgwKBgDh1UoYHytr52ps9leho"
-            "fYwAvZVXGd0Hqv4sdi+YWzGcQKJ30sgHfQUOxNgMo1/AVVdm+xn+svIk18nVvfjl"
-            "mDGCxBIQg27tEfZasOVwQlkUwULvN9UXYNgPPc28E/krhVVdWt2foy6J0iNye97N"
-            "9r7OovQdTCBfT0srvINlQpEk"
-        )
-        
-        # [수술 단계 2] 불순물 제거 (알파벳, 숫자, +, /, = 만 남깁니다)
-        clean_body = "".join(re.findall(r'[A-Za-z0-9+/=]+', raw_key_body))
-        
-        # [수술 단계 3] 구글 정석 규격(64자 줄바꿈)으로 강제 재조립
-        formatted_key = "-----BEGIN PRIVATE KEY-----\n"
-        for i in range(0, len(clean_body), 64):
-            formatted_key += clean_body[i:i+64] + "\n"
-        formatted_key += "-----END PRIVATE KEY-----\n"
-
-        info = {
-            "type": "service_account",
-            "project_id": "formal-facet-469109-n9",
-            "private_key_id": "a75d5c613386e549458b7f9ce7429053fa690601",
-            "private_key": formatted_key,
-            "client_email": "97202050044-compute@developer.gserviceaccount.com",
-            "client_id": "106591061735155848403",
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-            "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/97202050044-compute%40developer.gserviceaccount.com"
-        }
+        # Streamlit Secrets에서 보안 정보를 안전하게 읽어옵니다.
+        # 이 방식은 텍스트 깨짐 현상이 발생하지 않습니다.
+        info = dict(st.secrets["gcp_service_account"])
+        # JSON 안에 섞인 줄바꿈 기호를 실제 줄바꿈으로 변환
+        info["private_key"] = info["private_key"].replace("\\n", "\n")
         
         creds = service_account.Credentials.from_service_account_info(info)
         return vision.ImageAnnotatorClient(credentials=creds)
     except Exception as e:
-        st.error(f"❌ 보안 시스템 강제 복구 실패: {e}")
+        st.error(f"❌ 보안 금고 연결 실패: {e}")
+        st.info("💡 앱 설정(Settings > Secrets)에 보안키를 입력했는지 확인해주세요.")
         return None
 
-client = get_final_clean_client()
+client = get_google_client()
 
 st.title("⚖️ Legal_AI: 서비스 가동 중")
 
 if client:
-    st.success("✅ 시스템 정상 연결됨")
+    st.success("✅ 시스템 정상 가동")
     uploaded_file = st.file_uploader("법인등기부 PDF 또는 이미지를 업로드하세요", type=["pdf", "png", "jpg"])
     if uploaded_file:
         with st.spinner('AI 분석 중...'):
             try:
-                text = ""
+                full_text = ""
                 if uploaded_file.type == "application/pdf":
                     doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
                     for page in doc:
                         pix = page.get_pixmap()
-                        text += client.document_text_detection(image=vision.Image(content=pix.tobytes("png"))).full_text_annotation.text + "\n"
+                        full_text += client.document_text_detection(image=vision.Image(content=pix.tobytes("png"))).full_text_annotation.text + "\n"
                 else:
-                    text = client.document_text_detection(image=vision.Image(content=uploaded_file.getvalue())).full_text_annotation.text
+                    full_text = client.document_text_detection(image=vision.Image(content=uploaded_file.getvalue())).full_text_annotation.text
                 
-                st.subheader("分析 결과")
-                st.text_area("결과 텍스트", text, height=500)
+                st.subheader("📝 분석 결과")
+                st.text_area("인식된 텍스트", full_text, height=500)
             except Exception as e:
                 st.error(f"분석 중 오류 발생: {e}")
