@@ -3,14 +3,14 @@ import json
 import re
 from google.cloud import vision
 from google.oauth2 import service_account
-import fitz
+import fitz  # PyMuPDF
 
 st.set_page_config(page_title="Legal_AI: 문서 분석", layout="wide")
 
 def get_clean_client():
     try:
-        # 1. 보안키 본문 (복사 과정의 오염을 막기 위해 모든 글자를 하나로 합칩니다)
-        raw_key = (
+        # 1. 보안키 데이터 (복사 사고를 막기 위해 모든 글자를 하나로 합친 덩어리입니다)
+        raw_key_body = (
             "MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDUCS2AOnLmvW7J"
             "cdHkPMr/R/ofYyezVVDFECKFFlNAkE5djYwZZarSMlBALsMU8/AGFSSh9IXXCyQV"
             "6HcUraznulFAqBNLKFGcACcfukoSJhg1wjv9A9D3XBfzz6WDQdBgyrMo6WemoEkK"
@@ -39,10 +39,10 @@ def get_clean_client():
             "9r7OovQdTCBfT0srvINlQpEk"
         )
         
-        # 2. 유령 문자 청소기: 알파벳, 숫자, +, /, =만 남기고 모두 제거
-        clean_body = "".join(re.findall(r'[A-Za-z0-9+/=]+', raw_key))
+        # 2. [핵심 로직] 유령 문자 제거기 (알파벳, 숫자, +, /, =만 남기고 싹 지웁니다)
+        clean_body = "".join(re.findall(r'[A-Za-z0-9+/=]+', raw_key_body))
         
-        # 3. 구글이 원하는 정석 규격(64자 줄바꿈)으로 강제 재조립
+        # 3. [강제 재조립] 구글이 원하는 정석 규격으로 줄바꿈을 다시 넣습니다.
         formatted_key = "-----BEGIN PRIVATE KEY-----\n"
         for i in range(0, len(clean_body), 64):
             formatted_key += clean_body[i:i+64] + "\n"
@@ -58,8 +58,7 @@ def get_clean_client():
             "auth_uri": "https://accounts.google.com/o/oauth2/auth",
             "token_uri": "https://oauth2.googleapis.com/token",
             "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-            "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/97202050044-compute%40developer.gserviceaccount.com",
-            "universe_domain": "googleapis.com"
+            "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/97202050044-compute%40developer.gserviceaccount.com"
         }
         
         creds = service_account.Credentials.from_service_account_info(info)
@@ -70,23 +69,23 @@ def get_clean_client():
 
 client = get_clean_client()
 
-st.title("⚖️ Legal_AI: 서비스 준비 완료")
+st.title("⚖️ Legal_AI: 서비스 가동")
 
 if client:
     uploaded_file = st.file_uploader("법인등기부 PDF 또는 이미지를 업로드하세요", type=["pdf", "png", "jpg"])
     if uploaded_file:
         with st.spinner('AI 분석 중...'):
             try:
-                full_text = ""
+                text = ""
                 if uploaded_file.type == "application/pdf":
                     doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
                     for page in doc:
                         pix = page.get_pixmap()
-                        full_text += client.document_text_detection(image=vision.Image(content=pix.tobytes("png"))).full_text_annotation.text + "\n"
+                        text += client.document_text_detection(image=vision.Image(content=pix.tobytes("png"))).full_text_annotation.text + "\n"
                 else:
-                    full_text = client.document_text_detection(image=vision.Image(content=uploaded_file.getvalue())).full_text_annotation.text
+                    text = client.document_text_detection(image=vision.Image(content=uploaded_file.getvalue())).full_text_annotation.text
                 
                 st.success("✅ 분석 완료!")
-                st.text_area("결과 텍스트", full_text, height=450)
+                st.text_area("결과 확인", text, height=450)
             except Exception as e:
                 st.error(f"분석 중 오류 발생: {e}")
