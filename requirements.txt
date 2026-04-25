@@ -1,6 +1,5 @@
-streamlit
 google-cloud-vision
-pandas
-python-docx
-openpyxl
+google-generativeai
 pymupdf
+pandas
+streamlit
