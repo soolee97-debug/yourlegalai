@@ -10,41 +10,22 @@ import os
 # 1. [보안] 로컬의 key.json 대신 금고(Secrets)에서 키를 가져와 환경변수를 설정합니다.
 # 1. [보안] 로컬의 key.json 대신 금고(Secrets)에서 키를 가져와 환경변수를 설정합니다.
 # 1. [보안] 로컬의 key.json 대신 금고(Secrets)에서 키를 가져와 환경변수를 설정합니다.
+# 1. [보안] 오류를 일으키는 Base64를 버리고, 순수 JSON을 직접 읽어옵니다!
 def setup_auth():
     try:
-        b64_key = st.secrets["GCP_KEY_B64"]
-        b64_key = b64_key.strip()
-        b64_key += "=" * ((4 - len(b64_key) % 4) % 4)
+        # GCP_JSON 이라는 이름의 순수 텍스트 데이터를 가져옵니다.
+        raw_json = st.secrets["GCP_JSON"]
+        info = json.loads(raw_json, strict=False)
         
-        decoded_key = base64.b64decode(b64_key).decode('utf-8')
-        info = json.loads(decoded_key, strict=False)
-        
-        # 🚨 [절대 파괴되지 않는 열쇠 복구 머신]
-        import re
-        pk = info.get("private_key", "")
-        
-        # 1단계: 유령 문자(InvalidByte 28 등) 및 눈에 안 보이는 쓰레기 값 완벽 소각
-        pk = re.sub(r'[^\x20-\x7E]', '', pk) 
-        
-        # 2단계: 껍데기(BEGIN/END)를 벗기고 오염된 줄바꿈(\n)과 공백을 싹 밀어버림
-        pk = pk.replace("-----BEGIN PRIVATE KEY-----", "")
-        pk = pk.replace("-----END PRIVATE KEY-----", "")
-        pk = pk.replace("\\n", "").replace(" ", "")
-        
-        # 3단계: 구글 서버가 요구하는 완벽한 표준 규격(64글자씩 예쁘게 줄바꿈)으로 재포장
-        clean_pk = "-----BEGIN PRIVATE KEY-----\n"
-        clean_pk += "\n".join([pk[i:i+64] for i in range(0, len(pk), 64)])
-        clean_pk += "\n-----END PRIVATE KEY-----\n"
-        
-        info["private_key"] = clean_pk
-        # -----------------------------------------------------------
-        
+        # 줄바꿈 기호(\n)만 정상적으로 작동하도록 펴줍니다.
+        if "private_key" in info:
+            info["private_key"] = info["private_key"].replace("\\n", "\n")
+            
         return service_account.Credentials.from_service_account_info(info)
-    
+        
     except Exception as e:
-        st.error(f"🚨 디버깅 모드 (숨겨진 에러 원인): {e}")
+        st.error(f"🚨 디버깅 모드: {e}")
         return None
-
 # 2. Gemini 지능 연결 (상업화의 핵심)
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 model = genai.GenerativeModel('gemini-1.5-flash')
