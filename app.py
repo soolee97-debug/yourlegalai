@@ -9,6 +9,7 @@ import os
 
 # 1. [보안] 로컬의 key.json 대신 금고(Secrets)에서 키를 가져와 환경변수를 설정합니다.
 # 1. [보안] 로컬의 key.json 대신 금고(Secrets)에서 키를 가져와 환경변수를 설정합니다.
+# 1. [보안] 로컬의 key.json 대신 금고(Secrets)에서 키를 가져와 환경변수를 설정합니다.
 def setup_auth():
     try:
         b64_key = st.secrets["GCP_KEY_B64"]
@@ -18,9 +19,25 @@ def setup_auth():
         decoded_key = base64.b64decode(b64_key).decode('utf-8')
         info = json.loads(decoded_key, strict=False)
         
-        # 🚨 [최종 열쇠 정제] 망가진 줄바꿈(\\n) 기호를 정상적인 엔터(\n)로 강제 복구합니다!
-        if "private_key" in info:
-            info["private_key"] = info["private_key"].replace("\\n", "\n")
+        # 🚨 [절대 파괴되지 않는 열쇠 복구 머신]
+        import re
+        pk = info.get("private_key", "")
+        
+        # 1단계: 유령 문자(InvalidByte 28 등) 및 눈에 안 보이는 쓰레기 값 완벽 소각
+        pk = re.sub(r'[^\x20-\x7E]', '', pk) 
+        
+        # 2단계: 껍데기(BEGIN/END)를 벗기고 오염된 줄바꿈(\n)과 공백을 싹 밀어버림
+        pk = pk.replace("-----BEGIN PRIVATE KEY-----", "")
+        pk = pk.replace("-----END PRIVATE KEY-----", "")
+        pk = pk.replace("\\n", "").replace(" ", "")
+        
+        # 3단계: 구글 서버가 요구하는 완벽한 표준 규격(64글자씩 예쁘게 줄바꿈)으로 재포장
+        clean_pk = "-----BEGIN PRIVATE KEY-----\n"
+        clean_pk += "\n".join([pk[i:i+64] for i in range(0, len(pk), 64)])
+        clean_pk += "\n-----END PRIVATE KEY-----\n"
+        
+        info["private_key"] = clean_pk
+        # -----------------------------------------------------------
         
         return service_account.Credentials.from_service_account_info(info)
     
