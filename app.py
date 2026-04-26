@@ -11,11 +11,20 @@ import os
 def setup_auth():
     try:
         b64_key = st.secrets["GCP_KEY_B64"]
+        
+        # [안전장치] Base64 문자열의 꼬리 패딩(=)이 깨졌을 경우 자동 복구
+        b64_key = b64_key.strip()
+        b64_key += "=" * ((4 - len(b64_key) % 4) % 4)
+        
         decoded_key = base64.b64decode(b64_key).decode('utf-8')
         info = json.loads(decoded_key)
-        # 대표님의 main.py 방식처럼 환경변수 설정을 자동화합니다.
+        
         return service_account.Credentials.from_service_account_info(info)
-    except: return None
+    
+    except Exception as e:
+        # 🚨 무조건 에러를 삼키지 않고, 화면에 '진짜 원인'을 출력합니다!
+        st.error(f"🚨 디버깅 모드 (숨겨진 에러 원인): {e}")
+        return None
 
 # 2. Gemini 지능 연결 (상업화의 핵심)
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
