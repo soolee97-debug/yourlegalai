@@ -17,7 +17,7 @@ def setup_auth():
         b64_key += "=" * ((4 - len(b64_key) % 4) % 4)
         
         decoded_key = base64.b64decode(b64_key).decode('utf-8')
-        info = json.loads(decoded_key)
+        info = json.loads(decoded_key, strict=False)
         
         return service_account.Credentials.from_service_account_info(info)
     
