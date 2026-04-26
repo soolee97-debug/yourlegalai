@@ -29,6 +29,7 @@ def setup_auth():
 # 2. Gemini 지능 연결 (상업화의 핵심)
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 # 'models/'를 빼고, 뒤에 버전을 붙여줍니다.
+# 'models/'나 '-latest'를 모두 지우고 아주 깔끔하게 적어주세요.
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 st.set_page_config(page_title="Legal_AI: 상업용 통합 버전", layout="wide")
