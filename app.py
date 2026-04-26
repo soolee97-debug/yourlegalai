@@ -8,21 +8,23 @@ import google.generativeai as genai
 import os
 
 # 1. [보안] 로컬의 key.json 대신 금고(Secrets)에서 키를 가져와 환경변수를 설정합니다.
+# 1. [보안] 로컬의 key.json 대신 금고(Secrets)에서 키를 가져와 환경변수를 설정합니다.
 def setup_auth():
     try:
         b64_key = st.secrets["GCP_KEY_B64"]
-        
-        # [안전장치] Base64 문자열의 꼬리 패딩(=)이 깨졌을 경우 자동 복구
         b64_key = b64_key.strip()
         b64_key += "=" * ((4 - len(b64_key) % 4) % 4)
         
         decoded_key = base64.b64decode(b64_key).decode('utf-8')
         info = json.loads(decoded_key, strict=False)
         
+        # 🚨 [최종 열쇠 정제] 망가진 줄바꿈(\\n) 기호를 정상적인 엔터(\n)로 강제 복구합니다!
+        if "private_key" in info:
+            info["private_key"] = info["private_key"].replace("\\n", "\n")
+        
         return service_account.Credentials.from_service_account_info(info)
     
     except Exception as e:
-        # 🚨 무조건 에러를 삼키지 않고, 화면에 '진짜 원인'을 출력합니다!
         st.error(f"🚨 디버깅 모드 (숨겨진 에러 원인): {e}")
         return None
 
