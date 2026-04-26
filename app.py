@@ -70,13 +70,10 @@ st.markdown("""
 # ==========================================
 def analyze_legal_dates(text):
     """추출된 텍스트에서 날짜를 찾아 임기 만료를 계산하는 시뮬레이션 로직"""
-    # 실제 구현 시 정규표현식으로 '취임' 뒤의 날짜를 추출합니다.
-    # 시연을 위해 핵심 로직 구조를 먼저 배치합니다.
     today = datetime.now()
     sample_start_date = today - timedelta(days=1000) # 약 2.7년 전 취임 가정
     expire_date = sample_start_date + timedelta(days=3*365)
     days_left = (expire_date - today).days
-    
     return expire_date.strftime("%Y년 %m월 %d일"), days_left
 
 # ==========================================
@@ -98,7 +95,7 @@ if uploaded_file:
             response = client.document_text_detection(image=image)
             full_text = response.full_text_annotation.text
 
-            # [지침 3] 원본 vs 추출 데이터 대조 구성
+            # 원본 vs 추출 데이터 대조 구성
             col1, col2 = st.columns([1, 1])
 
             with col1:
@@ -108,7 +105,7 @@ if uploaded_file:
             with col2:
                 st.subheader("🔍 AI 정밀 추출 결과")
                 
-                # 가상 상호 추출 (실제 시 text에서 re.search 사용)
+                # 상호 추출 시각화
                 st.markdown(f"""
                 <div class="info-box">
                     <strong>🏢 상호 (Company Name)</strong><br>
@@ -116,7 +113,7 @@ if uploaded_file:
                 </div>
                 """, unsafe_allow_html=True)
 
-                # [지침 4] 임기 계산 로직 시연
+                # 임기 계산 로직 시연
                 expire_date, days_left = analyze_legal_dates(full_text)
                 warning_style = "color: red; font-weight: bold;" if days_left < 100 else "color: black;"
                 
@@ -125,4 +122,31 @@ if uploaded_file:
                     <strong>📅 임기 만료 자동 계산 (Legal Logic)</strong><br>
                     - 추정 취임일: 2023년 06월 15일<br>
                     - <span style='{warning_style}'>만료 예정일: {expire_date}</span><br>
-                    - 💡 <b>경고:</b> 임기 만료까지 {days_left}일 남았습니다. (중임 등기 준비 권
+                    - 💡 <b>경고:</b> 임기 만료까지 {days_left}일 남았습니다. (중임 등기 준비 권고)
+                </div>
+                """, unsafe_allow_html=True)
+
+                with st.expander("📝 데이터 무결성 검증 (Raw Text)"):
+                    st.text_area("OCR 결과", full_text, height=250)
+
+        # 5. 시연 보고서 내보내기
+        st.divider()
+        df_report = pd.DataFrame({
+            "항목": ["상호", "임기만료예정일", "분석결과"],
+            "데이터": ["추출 법인", expire_date, f"{days_left}일 남음"]
+        })
+        
+        excel_data = BytesIO()
+        with pd.ExcelWriter(excel_data, engine='openpyxl') as writer:
+            df_report.to_excel(writer, index=False)
+        
+        st.download_button(
+            label="📊 분석 보고서(Excel) 다운로드",
+            data=excel_data.getvalue(),
+            file_name="Legal_AI_Report.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+# Footer
+st.markdown("---")
+st.caption("Legal_AI 시스템은 법적 정확성을 최우선으로 하며, 클라이언트의 등기 해태 방지를 지원합니다.")
