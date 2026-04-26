@@ -1,5 +1,5 @@
-google-cloud-vision
-google-generativeai
-pymupdf
-pandas
 streamlit
+google-cloud-vision
+google-generativeai>=0.7.2
+pymupdf
+google-auth
